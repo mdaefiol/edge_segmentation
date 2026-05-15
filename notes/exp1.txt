@@ -1,0 +1,9 @@
+O que não precisa do cityscapes:
+
+- gtCoarse — anotações mais grosseiras, não recomendadas para baseline
+- rightImg8bit — câmera direita, fora do escopo
+- disparity — profundidade, não é segmentação semântica
+- leftImg16bit — HDR, sem necessidade para o seu cenário
+- As versões foggy e rain — interessantes só se quiser explorar robustez, mas fora do plano atual
+- trainextra — 19.998 imagens extras com anotações grosseiras, desnecessário
+
