@@ -7,3 +7,122 @@ O que não precisa do cityscapes:
 - As versões foggy e rain — interessantes só se quiser explorar robustez, mas fora do plano atual
 - trainextra — 19.998 imagens extras com anotações grosseiras, desnecessário
 
+Estrutura da pasta cityscapes:
+cityscapes/
+  leftImg8bit/
+    train/  val/  test/
+      cidade/
+        cidade_000000_000019_leftImg8bit.png
+  gtFine/
+    train/  val/  test/
+      cidade/
+        cidade_000000_000019_gtFine_labelIds.png   ← máscaras brutas (IDs 0–33)
+        cidade_000000_000019_gtFine_color.png       ← só pra visualização
+        cidade_000000_000019_gtFine_instanceIds.png
+
+############### usar sempre o arquivo _labelIds.png para treino, não o _color.png.
+
+Total de imagens 5.000 (2.975 train / 500 val / 1.525 test)
+Resolução 2048×1024 px
+34 classes (mas 19 são usadas para avaliação)
+50 cidades alemãsMáscaras de teste
+Não disponíveis publicamente (avaliação via servidor)
+
+
+Cityscapes usa dois sistemas de IDs. O relevante é o labelId (0–33):
+Flat:        road(7), sidewalk(8), parking(9), railtrack(10)
+Human:       person(24), rider(25)
+Vehicle:     car(26), truck(27), bus(28), caravan(29), trailer(30), train(31), motorcycle(32), bicycle(33)
+Construction:building(11), wall(12), fence(13), guardRail(14), bridge(15), tunnel(16)
+Object:      pole(17), poleGroup(18), trafficLight(19), trafficSign(20)
+Nature:      vegetation(21), terrain(22)
+Sky:         sky(23)
+Void:        unlabeled(0), egoVehicle(1), rectificationBorder(2), outOfRoi(3), static(4), dynamic(5), ground(6)
+
+# Mapeamento de Classes — Cityscapes → Pesquisa
+# ignore_index = 255 para tudo que não estiver listado abaixo
+
+# Classe 0 — pista_trafegavel
+road = 7
+
+# Classe 1 — faixa_transito
+# DECISAO PENDENTE: sidewalk pode ser remapeado para background dependendo do foco da pesquisa
+sidewalk = 8
+
+# Classe 2 — veiculo
+car        = 26
+truck      = 27
+bus        = 28
+motorcycle = 32
+bicycle    = 33
+
+# Classe 3 — pedestre
+person = 24
+rider  = 25
+
+# Classe 4 — obstaculo
+pole         = 17
+trafficLight = 19
+trafficSign  = 20
+wall         = 12
+fence        = 13
+
+# Classe 255 — background / ignore (ignore_index)
+# Todos os demais labelIds nao listados acima serao ignorados:
+# unlabeled(0), egoVehicle(1), rectificationBorder(2), outOfRoi(3),
+# static(4), dynamic(5), ground(6), parking(9), railtrack(10),
+# building(11), guardRail(14), bridge(15), tunnel(16),
+# poleGroup(18), terrain(22), vegetation(21), sky(23),
+# caravan(29), trailer(30), train(31)
+
+FASE A — Leitura estrutural
+  ├── Listar todos os pares (imagem, máscara) por split
+  ├── Verificar resolução de cada imagem
+  └── Confirmar integridade (arquivos corrompidos, pares ausentes)
+
+FASE B — Análise das máscaras (labelIds originais)
+  ├── Contar pixels por classe em todo o dataset
+  ├── Contar aparição de cada classe por imagem
+  ├── Calcular grau de desbalanceamento
+  └── Contar pixels void/ignore nativos
+
+FASE C — Aplicar mapeamento da pesquisa
+  ├── Converter labelIds → 5 classes + ignore (255)
+  ├── Recalcular distribuição com as novas classes
+  └── Identificar classes críticas com poucos pixels (pedestres, obstáculos)
+
+FASE D — Geração de saídas
+  ├── Gráfico de barras: frequência de pixels por classe
+  ├── Gráfico: % de imagens com cada classe presente
+  ├── Histograma de resoluções (deve ser uniforme no Cityscapes)
+  ├── Amostras visuais: imagem + máscara sobreposta (antes e após mapeamento)
+  └── Relatório: dataset_statistics.json + dataset_statistics.csv
+
+  _______________________________________________________________________________
+
+  train oficial (2.975 imagens)
+  → 80% para treino real      (~2.380 imagens)
+  → 20% para val desenvolvimento (~595 imagens)
+
+val oficial (500 imagens)
+  → usar como TEST fixo (não tocar até avaliação final)
+
+Resolução    Fator de downscale   Observação
+  1024×512 ->  2×                -> Padrão comum em papers com Cityscapes
+ 512×256       4×                   Target principal para embarcado
+ 480×240      ~4.3×                 Alternativa mais agressiva
+
+
+ Saida esperada: 
+ outputs/experimento_1/etapa_1/
+  ├── dataset_statistics.json        ← métricas gerais
+  ├── dataset_statistics.csv         ← por classe
+  ├── class_distribution.png         ← barras de pixels por classe
+  ├── class_presence_per_image.png   ← % imagens com cada classe
+  ├── resolution_histogram.png       ← deve ser uniforme
+  ├── samples/
+  │   ├── sample_01_original.png
+  │   ├── sample_01_mask_original.png    ← 34 classes
+  │   └── sample_01_mask_remapped.png   ← 5 classes + ignore
+  └── configs/
+      └── class_mapping_cityscapes.json
