@@ -221,6 +221,6 @@ __marimo__/
 # others 
 *.zip
 *.png
-*.json
+*polygons.json
 *.jpeg
 *.pdf

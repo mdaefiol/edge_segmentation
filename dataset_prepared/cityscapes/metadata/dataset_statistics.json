@@ -1,0 +1,18 @@
+{
+  "splits": {
+    "train": {
+      "num_images": 0,
+      "num_masks": 0
+    },
+    "val": {
+      "num_images": 0,
+      "num_masks": 0
+    },
+    "test": {
+      "num_images": 0,
+      "num_masks": 0
+    }
+  },
+  "resolutions": [],
+  "class_distribution": {}
+}
