@@ -27,4 +27,4 @@ PREPARED_METADATA = "metadata"
 LABELS_MODULE = "helpers.cityscapes_labels"
 
 # Overlay generation limit (None for all)
-OVERLAY_MAX_IMAGES = 50
+OVERLAY_MAX_IMAGES = 5000
