@@ -13,22 +13,18 @@ from utils.terminal_to_pdf import TerminalToPDF
 from io_cityscapes import list_images, list_labelids, get_resolutions
 from report_cityscapes import generate_cityscapes_report
 
+
 # Import analysis/plotting functions
 from analysis_cityscapes import plot_pixel_frequency_per_class, plot_class_appearance_per_image, print_class_frequencies, generate_all_overlays
 
+# Import dataset configuration
+from dataset_config import IMAGE_SUFFIX, MASK_SUFFIX, IMG_DIR, MASK_DIR, LABELS_MODULE
+
 # Import label definitions dynamically
 import importlib
-
-LABELS_MODULE = "helpers.cityscapes_labels"  # Labels module 
 labels_mod = importlib.import_module(LABELS_MODULE)
 id2label = labels_mod.id2label
 labels = labels_mod.labels
-
-# === CONFIGURATION FOR DATASET CITYSCAPES ===
-IMAGE_SUFFIX = "_leftImg8bit.png"  # RGB images
-MASK_SUFFIX = "_gtFine_labelIds.png"  # Label masks
-IMG_DIR = "/home/senai/Documentos/edge_segmentation/datasets/cityscapes/leftImg8bit_trainvaltest/leftImg8bit"
-MASK_DIR = "/home/senai/Documentos/edge_segmentation/datasets/cityscapes/gtFine_trainvaltest/gtFine"
 
 
 def plot_resolution_histogram(resolutions, save_path="resolution_histogram.png"):

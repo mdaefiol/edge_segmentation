@@ -1,17 +1,24 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+
 from PIL import Image
+from dataset_config import OVERLAYS_DIR, OVERLAY_MAX_IMAGES
 
 
 def generate_all_overlays(labelids_list, id2label, MASK_SUFFIX, IMAGE_SUFFIX, MASK_DIR, IMG_DIR):
     """Gera overlays para todos os pares de imagem/máscara em labelids_list e salva na pasta overlays/"""
 
-    overlays_dir = "outputs/overlays"
+    overlays_dir = OVERLAYS_DIR
     os.makedirs(overlays_dir, exist_ok=True)
     
-    max_imgs = 50
+    # Limitar o número de imagens processadas para overlays
+    if OVERLAY_MAX_IMAGES is not None:
+        max_imgs = OVERLAY_MAX_IMAGES
+    else:
+        max_imgs = len(labelids_list)
     print(f"[DEBUG] Total de máscaras para processar: {min(len(labelids_list), max_imgs)} (limitado a {max_imgs})")
+    
     for idx, example_mask_path in enumerate(labelids_list[:max_imgs]):
         # Corrigir: trocar o sufixo da máscara pelo sufixo da imagem
         img_path = example_mask_path.replace(MASK_SUFFIX, IMAGE_SUFFIX)

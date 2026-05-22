@@ -53,3 +53,14 @@ Também deverão ser gerados gráficos e relatórios, tais como:
 - Amostras visuais para conferência qualitativa das máscaras.
 
 Objetivo:dentificar problemas como desbalanceamento de classes, ausência de classes críticas, inconsistências nas máscaras e diferenças de resolução. Os resultados dessa análise deverão orientar decisões posteriores, como escolha da função de perda, estratégia de amostragem, resolução de entrada e agrupamento de classes.
+
+
+#### Etapa 2: Definição e Mapeamento de Classes
+
+Função de cada arquivo:
+
+dataset_statistics.json:
+Contém estatísticas globais do dataset preparado, como número de imagens por split, resoluções, distribuição de classes, etc. É um resumo quantitativo do dataset já organizado.
+
+split_report.csv:
+Relatório tabular detalhando a divisão dos dados (train/val/test), normalmente com colunas como: nome do arquivo, split, resolução, presença de classes, etc. Serve para auditoria e rastreabilidade dos arquivos em cada split.
