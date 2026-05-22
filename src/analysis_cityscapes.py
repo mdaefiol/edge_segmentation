@@ -2,29 +2,34 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 from PIL import Image
- 
-def print_class_frequencies(pixel_counts, total_pixels, class_appears_in, labelids_list, id2label, MASK_SUFFIX, IMAGE_SUFFIX, MASK_DIR, IMG_DIR):
-    '''Prints class frequencies and the overlay of classes present in the masks'''
-    ignored_pixels = 0
-    for cls_id in pixel_counts:
-        if cls_id in id2label:
-            label = id2label[cls_id]
-            if hasattr(label, 'ignoreInEval') and label.ignoreInEval:
-                ignored_pixels += pixel_counts[cls_id]
-    if total_pixels > 0:
-        perc_ignored = 100 * ignored_pixels / total_pixels
-    else:
-        perc_ignored = 0
-    print(f"\nIgnored/unlabeled pixels: {ignored_pixels} ({perc_ignored:.2f}% of total)")
 
-    # image and mask overlay
-    overlay_created = False
-    for example_mask_path in labelids_list:
+
+def generate_all_overlays(labelids_list, id2label, MASK_SUFFIX, IMAGE_SUFFIX, MASK_DIR, IMG_DIR):
+    """Gera overlays para todos os pares de imagem/máscara em labelids_list e salva na pasta overlays/"""
+
+    overlays_dir = "outputs/overlays"
+    os.makedirs(overlays_dir, exist_ok=True)
+    
+    max_imgs = 50
+    print(f"[DEBUG] Total de máscaras para processar: {min(len(labelids_list), max_imgs)} (limitado a {max_imgs})")
+    for idx, example_mask_path in enumerate(labelids_list[:max_imgs]):
+        # Corrigir: trocar o sufixo da máscara pelo sufixo da imagem
         img_path = example_mask_path.replace(MASK_SUFFIX, IMAGE_SUFFIX)
+        
         if MASK_DIR in example_mask_path and IMG_DIR not in example_mask_path:
-            img_path = example_mask_path.replace(MASK_DIR, IMG_DIR)
-        if not os.path.exists(img_path):
+            img_path = img_path.replace(MASK_DIR, IMG_DIR)
+        
+        print(f"[DEBUG] ({idx+1}/{len(labelids_list)}) Máscara: {example_mask_path}")
+        print(f"[DEBUG] Imagem correspondente: {img_path}")
+        
+        if not os.path.exists(example_mask_path):
+            print(f"[DEBUG] Máscara não encontrada: {example_mask_path}")
             continue
+        
+        if not os.path.exists(img_path):
+            print(f"[DEBUG] Imagem não encontrada: {img_path}")
+            continue
+        
         try:
             img = Image.open(img_path).convert("RGB")
             mask = Image.open(example_mask_path)
@@ -36,7 +41,6 @@ def print_class_frequencies(pixel_counts, total_pixels, class_appears_in, labeli
                 color = label.color
                 mask_area = (mask_np == cls_id)
                 color_mask[mask_area] = color
-            overlay = img_np.copy()
             alpha = 0.4
             overlay = (img_np * (1 - alpha) + color_mask * alpha).astype(np.uint8)
             fig, axs = plt.subplots(1, 3, figsize=(15, 5))
@@ -50,15 +54,38 @@ def print_class_frequencies(pixel_counts, total_pixels, class_appears_in, labeli
             axs[2].set_title("Overlay")
             axs[2].axis("off")
             plt.tight_layout()
-            plt.savefig("example_overlay.png")
+            rel_path = os.path.relpath(example_mask_path, MASK_DIR)
+            rel_path_no_ext = os.path.splitext(rel_path)[0]
+            rel_path_clean = rel_path_no_ext.replace(os.sep, "_")
+            overlay_name = f"overlay_{rel_path_clean}.png"
+            overlay_path = os.path.join(overlays_dir, overlay_name)
+            
+            plt.savefig(overlay_path)
             plt.close()
-            print("Example image and mask overlay saved as example_overlay.png")
-            overlay_created = True
-            break
+
+            print(f"[DEBUG] Overlay salvo: {overlay_path}")
+        
         except Exception as e:
-            continue
-    if not overlay_created:
-        print("Could not create overlay example: No matching image/mask pair found.")
+            print(f"[DEBUG] Erro ao criar overlay para {img_path}: {e}")
+ 
+def print_class_frequencies(pixel_counts, total_pixels, class_appears_in, labelids_list, id2label, MASK_SUFFIX, IMAGE_SUFFIX, MASK_DIR, IMG_DIR):
+    '''Prints class frequencies and the overlay of classes present in the masks'''
+    
+    ignored_pixels = 0
+    
+    for cls_id in pixel_counts:
+        if cls_id in id2label:
+            label = id2label[cls_id]
+            if hasattr(label, 'ignoreInEval') and label.ignoreInEval:
+                ignored_pixels += pixel_counts[cls_id]
+    
+    if total_pixels > 0:
+        perc_ignored = 100 * ignored_pixels / total_pixels
+    else:
+        perc_ignored = 0
+    print(f"\nIgnored/unlabeled pixels: {ignored_pixels} ({perc_ignored:.2f}% of total)")
+
+    # (Removido: geração de overlays. Agora só análise textual.)
 
     print("\nAbsolute and relative pixel frequency per class:")
     print("Class           ID   Pixels      Relative (%)")
@@ -73,6 +100,7 @@ def print_class_frequencies(pixel_counts, total_pixels, class_appears_in, labeli
 
     # Build list of present classes (with label name)
     present = []
+    
     for cls_id in pixel_counts:
         if cls_id in id2label:
             present.append(id2label[cls_id].name)
@@ -81,6 +109,7 @@ def print_class_frequencies(pixel_counts, total_pixels, class_appears_in, labeli
     # Frequency of appearance of each class per image
     print("\nFrequency of appearance of each class per image:")
     num_imgs = len(labelids_list)
+    
     for cls_id, freq in sorted(class_appears_in.items(), key=lambda x: -x[1]):
         label = id2label.get(cls_id)
         name = label.name if label else str(cls_id)
@@ -93,12 +122,14 @@ def print_class_frequencies(pixel_counts, total_pixels, class_appears_in, labeli
         max_cls_id, max_count = max(pixel_counts.items(), key=lambda x: x[1])
         # Filter out classes with zero pixels for min calculation
         nonzero_pixel_counts = []
+        
         for item in pixel_counts.items():
             if item[1] > 0:
                 nonzero_pixel_counts.append(item)
         min_cls_id, min_count = min(nonzero_pixel_counts, key=lambda x: x[1])
         max_label = id2label.get(max_cls_id)
         min_label = id2label.get(min_cls_id)
+        
         if min_count > 0:
             imbalance = max_count / min_count
             print(f"\nDegree of class imbalance (max/min): {imbalance:.2f}")
@@ -123,6 +154,7 @@ def plot_pixel_frequency_per_class(class_pixel_counts, class_names, save_path=No
     plt.title('Frequência de pixels por classe')
     plt.xticks(rotation=45, ha='right')
     plt.tight_layout()
+    
     if save_path:
         plt.savefig(save_path)
         plt.close()
@@ -142,6 +174,7 @@ def plot_class_appearance_per_image(class_appearance_counts, class_names, save_p
     plt.title('Aparição das classes por imagem')
     plt.xticks(rotation=45, ha='right')
     plt.tight_layout()
+    
     if save_path:
         plt.savefig(save_path)
         plt.close()
