@@ -4,6 +4,8 @@ import os
 
 from PIL import Image
 from dataset_config import OVERLAYS_DIR, OVERLAY_MAX_IMAGES
+from dataset_config import PREPARED_ROOT, PREPARED_METADATA
+import json
 
 
 def generate_all_overlays(labelids_list, id2label, MASK_SUFFIX, IMAGE_SUFFIX, MASK_DIR, IMG_DIR):
@@ -43,10 +45,22 @@ def generate_all_overlays(labelids_list, id2label, MASK_SUFFIX, IMAGE_SUFFIX, MA
             img_np = np.array(img)
             mask_np = np.array(mask)
             color_mask = np.zeros_like(img_np)
-            for cls_id in id2label:
-                label = id2label[cls_id]
-                color = label.color
+            # Build color map: prefer original label colors, fallback to reduced palette
+            reduced_palette = {
+                0: (128, 64, 128),  # Pista trafegável
+                1: (255, 255, 0),   # Faixas de trânsito
+                2: (0, 0, 142),     # Veículos
+                3: (220, 20, 60),   # Pedestres
+                4: (70, 70, 70),    # Obstáculos
+                255: (0, 0, 0),     # Background/Ignore
+            }
+            unique_ids = np.unique(mask_np)
+            for cls_id in unique_ids:
                 mask_area = (mask_np == cls_id)
+                if cls_id in id2label:
+                    color = id2label[cls_id].color
+                else:
+                    color = reduced_palette.get(int(cls_id), (255, 0, 255))
                 color_mask[mask_area] = color
             alpha = 0.4
             overlay = (img_np * (1 - alpha) + color_mask * alpha).astype(np.uint8)
@@ -78,8 +92,24 @@ def generate_all_overlays(labelids_list, id2label, MASK_SUFFIX, IMAGE_SUFFIX, MA
 def print_class_frequencies(pixel_counts, total_pixels, class_appears_in, labelids_list, id2label, MASK_SUFFIX, IMAGE_SUFFIX, MASK_DIR, IMG_DIR):
     '''Prints class frequencies and the overlay of classes present in the masks'''
     
+    # Determine ignore_index from prepared metadata if available
+    ignore_index = None
+    mapping_path = os.path.join(PREPARED_ROOT, PREPARED_METADATA, 'class_mapping.json')
+    id_to_reduced_name = {}
+    if os.path.exists(mapping_path):
+        try:
+            with open(mapping_path, 'r') as mf:
+                mapping_meta = json.load(mf)
+            ignore_index = int(mapping_meta.get('ignore_index')) if 'ignore_index' in mapping_meta else None
+            reduced_to_id = mapping_meta.get('reduced_to_id', {})
+            id_to_reduced_name = {int(v): k for k, v in reduced_to_id.items()}
+        except Exception:
+            ignore_index = None
+
     ignored_pixels = 0
-    
+    if ignore_index is not None and ignore_index in pixel_counts:
+        ignored_pixels += pixel_counts[ignore_index]
+
     for cls_id in pixel_counts:
         if cls_id in id2label:
             label = id2label[cls_id]
@@ -99,18 +129,23 @@ def print_class_frequencies(pixel_counts, total_pixels, class_appears_in, labeli
     print("-" * 45)
 
     for cls_id, count in sorted(pixel_counts.items(), key=lambda x: -x[1]):
-        label = id2label.get(cls_id)
-        name = label.name if label else str(cls_id)
+        # Prefer reduced name mapping, then id2label, then numeric
+        name = id_to_reduced_name.get(cls_id)
+        if name is None:
+            label = id2label.get(cls_id)
+            name = label.name if label else str(cls_id)
         rel = 100 * count / total_pixels if total_pixels else 0
         print(f"{name:15} {cls_id:3} {count:10} {rel:12.2f}")
     print(f"\nTotal pixels: {total_pixels}")
 
     # Build list of present classes (with label name)
     present = []
-    
     for cls_id in pixel_counts:
-        if cls_id in id2label:
-            present.append(id2label[cls_id].name)
+        name = id_to_reduced_name.get(cls_id)
+        if name is None and cls_id in id2label:
+            name = id2label[cls_id].name
+        if name:
+            present.append(name)
     print(f"Classes present ({len(present)}): {present}")
 
     # Frequency of appearance of each class per image
@@ -118,8 +153,10 @@ def print_class_frequencies(pixel_counts, total_pixels, class_appears_in, labeli
     num_imgs = len(labelids_list)
     
     for cls_id, freq in sorted(class_appears_in.items(), key=lambda x: -x[1]):
-        label = id2label.get(cls_id)
-        name = label.name if label else str(cls_id)
+        name = id_to_reduced_name.get(cls_id)
+        if name is None:
+            label = id2label.get(cls_id)
+            name = label.name if label else str(cls_id)
         percent = 100 * freq / num_imgs if num_imgs else 0
         print(f"{name:<20} {cls_id:<5} {freq:<8} ({percent:.2f}% of images)")
 
@@ -136,12 +173,15 @@ def print_class_frequencies(pixel_counts, total_pixels, class_appears_in, labeli
         min_cls_id, min_count = min(nonzero_pixel_counts, key=lambda x: x[1])
         max_label = id2label.get(max_cls_id)
         min_label = id2label.get(min_cls_id)
+        # Prefer reduced names if available
+        max_name = id_to_reduced_name.get(max_cls_id) if id_to_reduced_name else (max_label.name if max_label else max_cls_id)
+        min_name = id_to_reduced_name.get(min_cls_id) if id_to_reduced_name else (min_label.name if min_label else min_cls_id)
         
         if min_count > 0:
             imbalance = max_count / min_count
             print(f"\nDegree of class imbalance (max/min): {imbalance:.2f}")
-            print(f"Most frequent class: {max_label.name if max_label else max_cls_id} (ID {max_cls_id}) with {max_count} pixels")
-            print(f"Least frequent class: {min_label.name if min_label else min_cls_id} (ID {min_cls_id}) with {min_count} pixels")
+            print(f"Most frequent class: {max_name} (ID {max_cls_id}) with {max_count} pixels")
+            print(f"Least frequent class: {min_name} (ID {min_cls_id}) with {min_count} pixels")
         else:
             print("\nDegree of class imbalance: infinite (min=0)")
     else:

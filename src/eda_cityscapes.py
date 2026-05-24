@@ -10,7 +10,8 @@ import csv
 import matplotlib.pyplot as plt
 
 from utils.terminal_to_pdf import TerminalToPDF
-from io_cityscapes import list_images, list_labelids, get_resolutions
+from io_cityscapes import list_images, list_labelids, get_resolutions, list_prepared_images, list_prepared_labelids
+from prepare_cityscapes import prepare_dataset
 from report_cityscapes import generate_cityscapes_report
 
 
@@ -18,7 +19,7 @@ from report_cityscapes import generate_cityscapes_report
 from analysis_cityscapes import plot_pixel_frequency_per_class, plot_class_appearance_per_image, print_class_frequencies, generate_all_overlays
 
 # Import dataset configuration
-from dataset_config import IMAGE_SUFFIX, MASK_SUFFIX, IMG_DIR, MASK_DIR, LABELS_MODULE
+from dataset_config import IMAGE_SUFFIX, MASK_SUFFIX, IMG_DIR, MASK_DIR, LABELS_MODULE, PREPARED_ROOT, PREPARED_METADATA
 
 # Import label definitions dynamically
 import importlib
@@ -106,8 +107,20 @@ def analyze_classes_and_frequencies(labelids_list, resolutions):
         except Exception as e:
             print(f"Error opening mask {mask_path}: {e}")
 
-    # Prepare class names dict for plotting
-    class_names = {cls_id: id2label[cls_id].name if cls_id in id2label else str(cls_id) for cls_id in pixel_counts}
+    # Try to load reduced mapping from prepared metadata to show reduced class names
+    class_names = {}
+    mapping_path = os.path.join(PREPARED_ROOT, PREPARED_METADATA, 'class_mapping.json')
+    if os.path.exists(mapping_path):
+        try:
+            with open(mapping_path, 'r') as mf:
+                mapping_meta = json.load(mf)
+            reduced_to_id = mapping_meta.get('reduced_to_id', {})
+            id_to_name = {int(v): k for k, v in reduced_to_id.items()}
+            class_names = {cls_id: id_to_name.get(cls_id, str(cls_id)) for cls_id in pixel_counts}
+        except Exception:
+            class_names = {cls_id: id2label[cls_id].name if cls_id in id2label else str(cls_id) for cls_id in pixel_counts}
+    else:
+        class_names = {cls_id: id2label[cls_id].name if cls_id in id2label else str(cls_id) for cls_id in pixel_counts}
 
 
     # Plot pixel frequency per class
@@ -121,7 +134,7 @@ def analyze_classes_and_frequencies(labelids_list, resolutions):
     # Print detailed class analysis (textual)
     print_class_frequencies(
         pixel_counts, total_pixels, class_appears_in, labelids_list,
-        id2label, MASK_SUFFIX, IMAGE_SUFFIX, MASK_DIR, IMG_DIR
+        id2label, MASK_SUFFIX, IMAGE_SUFFIX, PREPARED_ROOT, PREPARED_ROOT
     )
 
     # Export statistics to CSV and JSON
@@ -132,8 +145,13 @@ if __name__ == "__main__":
     buffer = TerminalToPDF("terminal_output.pdf")
     buffer.start()
     try:
-        images = list_images(IMG_DIR, IMAGE_SUFFIX)
-        print(f"Total images found: {len(images)}")
+        # Prepare dataset (remap masks and copy images to dataset_prepared)
+        # Also perform stratified split (70/15/15) and register seed
+        prepare_dataset(perform_stratified_split=True, split_seed=42, ratios=(0.7, 0.15, 0.15))
+
+        # Use prepared dataset images/masks for EDA (remapped classes)
+        images = list_prepared_images(PREPARED_ROOT, IMAGE_SUFFIX)
+        print(f"Total prepared images found: {len(images)}")
 
         # Get the resolutions of all images
         resolutions = get_resolutions(images)
@@ -151,12 +169,12 @@ if __name__ == "__main__":
         plot_resolution_histogram(resolutions)
 
         # Analyze classes and pixel frequencies
-        labelids = list_labelids(MASK_DIR, MASK_SUFFIX)
-        print(f"\nTotal labelIds masks found: {len(labelids)}")
+        labelids = list_prepared_labelids(PREPARED_ROOT, MASK_SUFFIX)
+        print(f"\nTotal prepared labelIds masks found: {len(labelids)}")
 
         # Generate overlays for all image/mask pairs directly in outputs/overlays
-        print("\nGenerating overlays for all masks...")
-        generate_all_overlays(labelids, id2label, MASK_SUFFIX, IMAGE_SUFFIX, MASK_DIR, IMG_DIR)
+        print("\nGenerating overlays for all masks (prepared)...")
+        generate_all_overlays(labelids, id2label, MASK_SUFFIX, IMAGE_SUFFIX, PREPARED_ROOT, PREPARED_ROOT)
 
         # Analyze classes and pixel frequencies in labelIds masks
         analyze_classes_and_frequencies(labelids, resolutions)

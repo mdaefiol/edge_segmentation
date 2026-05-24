@@ -21,7 +21,7 @@
     {"original": "train", "reduced": "Veículos"},
     {"original": "motorcycle", "reduced": "Veículos"},
     {"original": "bicycle", "reduced": "Veículos"},
-    {"original": "lane marking", "reduced": "Faixas de trânsito"},
+    
     {"original": "unlabeled", "reduced": "Background/Ignore"},
     {"original": "ego vehicle", "reduced": "Background/Ignore"},
     {"original": "rectification border", "reduced": "Background/Ignore"},
